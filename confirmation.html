@@ -20,14 +20,15 @@
   <p class="en">Email confirmed. Your BlueOra account is ready: go back to the app to sign in.</p>
 </div>
 <script>
-  // Supabase renvoie la session (ou une erreur) dans le fragment : on la transmet à l'app.
+  // Supabase renvoie ?code=… (PKCE) ou une erreur dans le fragment : on transmet le code à l'app.
   var hash = location.hash || '';
   var params = new URLSearchParams(hash.slice(1) || location.search.slice(1));
+  var code = new URLSearchParams(location.search).get('code');
   if (params.get('error')) {
     document.getElementById('title').textContent = 'Lien expiré ou déjà utilisé';
     document.getElementById('text').textContent = "Ouvre BlueOra et connecte-toi : si ton adresse n'est pas encore confirmée, l'app te proposera un nouveau lien.";
   }
-  var target = 'blueora://auth/callback' + hash;
+  var target = 'blueora://auth/callback' + (code ? '?code=' + encodeURIComponent(code) : '');
   document.getElementById('open').href = target;
   if (!params.get('error') && /Android|iPhone|iPad/i.test(navigator.userAgent)) location.href = target;
 </script>
