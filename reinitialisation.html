@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlueOra — Réinitialisation du mot de passe</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #071b2d 0%, #0d47a1 100%);
+    color: #ffffff; text-align: center; padding: 20px;
+  }
+  .card {
+    background: rgba(7, 27, 45, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 32px 28px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+  }
+  .mark { font-size: 42px; margin-bottom: 8px; color: #36a2ff; }
+  h1 { font-size: 24px; font-weight: 800; margin: 10px 0 8px; color: #ffffff; letter-spacing: -0.3px; }
+  p.desc { font-size: 15px; color: #b7c9d8; line-height: 1.5; margin: 0 0 24px; }
+  .field { text-align: left; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #9fb8cf; margin-bottom: 6px; }
+  input[type="password"] {
+    width: 100%; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(3, 26, 46, 0.8);
+    color: #ffffff; font-size: 16px; outline: none; transition: border-color 0.2s;
+  }
+  input[type="password"]:focus { border-color: #36a2ff; }
+  .btn {
+    width: 100%; padding: 15px; border-radius: 12px;
+    background: #0877ff; color: #ffffff; font-weight: 700; font-size: 16px;
+    border: none; cursor: pointer; margin-top: 10px; transition: background 0.2s, opacity 0.2s;
+  }
+  .btn:hover { background: #2087ff; }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-alt {
+    display: inline-block; padding: 12px 20px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1); color: #83e7f7; font-weight: 600; font-size: 14px;
+    text-decoration: none; margin-top: 16px; border: 1px solid rgba(131, 231, 247, 0.3);
+  }
+  .btn-alt:hover { background: rgba(255, 255, 255, 0.18); }
+  .alert-error {
+    background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5; padding: 12px; border-radius: 12px; font-size: 14px; margin-bottom: 18px; text-align: left;
+  }
+  .state-block { display: none; }
+  .state-block.active { display: block; }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #36a2ff; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 24px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .lang-switch { margin-top: 24px; font-size: 13px; color: #7890a8; }
+  .lang-switch a { color: #83e7f7; text-decoration: none; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="card">
+  <div class="mark">◉</div>
+
+  <!-- ÉTAT 1 : Chargement et vérification du lien -->
+  <div id="stateLoading" class="state-block active">
+    <h1>Vérification du lien...</h1>
+    <div class="spinner"></div>
+    <p class="desc">Connexion sécurisée à BlueOra en cours.</p>
+  </div>
+
+  <!-- ÉTAT 2 : Formulaire de nouveau mot de passe -->
+  <div id="stateForm" class="state-block">
+    <h1>Nouveau mot de passe</h1>
+    <p class="desc">Choisis un mot de passe d'au moins 8 caractères pour ton compte BlueOra.</p>
+    <div id="formError" class="alert-error" style="display:none;"></div>
+    <form id="pwdForm" onsubmit="return submitNewPassword(event)">
+      <div class="field">
+        <label for="pwd1">Nouveau mot de passe</label>
+        <input type="password" id="pwd1" required minlength="8" autocomplete="new-password" placeholder="8 caractères minimum" />
+      </div>
+      <div class="field">
+        <label for="pwd2">Confirmer le mot de passe</label>
+        <input type="password" id="pwd2" required minlength="8" autocomplete="new-password" placeholder="Retape ton mot de passe" />
+      </div>
+      <button type="submit" id="btnSubmit" class="btn">Enregistrer mon mot de passe</button>
+    </form>
+    <div style="margin-top: 18px;">
+      <a id="btnOpenAppDirect" class="btn-alt" href="blueora://auth/callback">Ouvrir directement dans l'application</a>
+    </div>
+  </div>
+
+  <!-- ÉTAT 3 : Succès -->
+  <div id="stateSuccess" class="state-block">
+    <div style="font-size: 44px; margin-bottom: 12px;">✅</div>
+    <h1>Mot de passe mis à jour !</h1>
+    <p class="desc">Ton nouveau mot de passe est enregistré. Tu peux maintenant te connecter dans BlueOra sur ton téléphone.</p>
+    <a id="btnOpenAppSuccess" class="btn" style="display:inline-block; text-decoration:none;" href="blueora://auth/callback">Ouvrir BlueOra</a>
+  </div>
+
+  <!-- ÉTAT 4 : Erreur / Jeton expiré -->
+  <div id="stateError" class="state-block">
+    <div style="font-size: 44px; margin-bottom: 12px;">⚠️</div>
+    <h1 id="errorTitle">Lien expiré ou invalide</h1>
+    <p id="errorMsg" class="desc">Ce lien de réinitialisation a déjà été utilisé ou a expiré. Retourne dans l'application BlueOra et demande un nouveau lien via « Mot de passe oublié ? ».</p>
+    <a class="btn" style="display:inline-block; text-decoration:none;" href="blueora://auth/callback">Retourner à BlueOra</a>
+  </div>
+
+  <div class="lang-switch">
+    BlueOra · <a href="confidentialite.html">Confidentialité</a> · <a href="communaute.html">Règles</a>
+  </div>
+</div>
+
+<script>
+  var SUPABASE_URL = 'https://erzdlomqomjfuxzclxdu.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyemRsb21xb21qZnV4emNseGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5ODk3NzMsImV4cCI6MjA5ODU2NTc3M30.t3NJjOkYQ5x6bWSRZvKZxQ83s5oTZ0KDkgO_UKwj71k';
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function setState(stateId) {
+    document.querySelectorAll('.state-block').forEach(function(el) { el.classList.remove('active'); });
+    var target = document.getElementById(stateId);
+    if (target) target.classList.add('active');
+  }
+
+  function showError(msg) {
+    setState('stateError');
+    if (msg) document.getElementById('errorMsg').textContent = msg;
+  }
+
+  async function checkRecoverySession() {
+    var searchParams = new URLSearchParams(window.location.search);
+    var hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+    var error = searchParams.get('error') || hashParams.get('error');
+    var errorDesc = searchParams.get('error_description') || hashParams.get('error_description');
+    if (error) {
+      showError(errorDesc || "Le lien de réinitialisation est invalide ou a expiré.");
+      return;
+    }
+
+    var code = searchParams.get('code');
+    if (code) {
+      var appTarget = 'blueora://auth/callback?code=' + encodeURIComponent(code);
+      document.getElementById('btnOpenAppDirect').href = appTarget;
+      if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        window.location.href = appTarget;
+      }
+      try {
+        var res = await sb.auth.exchangeCodeForSession(code);
+        if (res.error) {
+          showError("Ouvre cet e-mail directement sur le téléphone depuis lequel tu as demandé la réinitialisation, ou redemande un nouveau lien dans BlueOra.");
+          return;
+        }
+        setState('stateForm');
+        return;
+      } catch (e) {
+        showError("Ouvre cet e-mail directement sur ton téléphone, ou redemande un nouveau lien dans BlueOra.");
+        return;
+      }
+    }
+
+    // Flux HTTPS implicite (#access_token=...&type=recovery) : fonctionne sur tout appareil (PC, Mac, mobile)
+    var accessToken = hashParams.get('access_token');
+    var refreshToken = hashParams.get('refresh_token');
+    if (accessToken && refreshToken) {
+      try {
+        var setRes = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+        if (setRes.error) {
+          showError(setRes.error.message);
+          return;
+        }
+        setState('stateForm');
+        return;
+      } catch (e2) {
+        showError(e2.message);
+        return;
+      }
+    }
+
+    var sessionRes = await sb.auth.getSession();
+    if (sessionRes.data && sessionRes.data.session) {
+      setState('stateForm');
+    } else {
+      showError("Aucune session de récupération trouvée. Ouvre l'application BlueOra pour demander un nouveau lien.");
+    }
+  }
+
+  async function submitNewPassword(e) {
+    e.preventDefault();
+    var p1 = document.getElementById('pwd1').value;
+    var p2 = document.getElementById('pwd2').value;
+    var errBox = document.getElementById('formError');
+    errBox.style.display = 'none';
+
+    if (p1.length < 8) {
+      errBox.textContent = "Le mot de passe doit comporter au moins 8 caractères.";
+      errBox.style.display = 'block';
+      return false;
+    }
+    if (p1 !== p2) {
+      errBox.textContent = "Les deux mots de passe ne correspondent pas.";
+      errBox.style.display = 'block';
+      return false;
+    }
+
+    var btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+    btn.textContent = "Enregistrement en cours...";
+
+    try {
+      var updateRes = await sb.auth.updateUser({ password: p1 });
+      if (updateRes.error) {
+        errBox.textContent = updateRes.error.message;
+        errBox.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = "Enregistrer mon mot de passe";
+        return false;
+      }
+      await sb.auth.signOut({ scope: 'local' }).catch(function() {});
+      setState('stateSuccess');
+    } catch (err) {
+      errBox.textContent = err.message || "Une erreur est survenue.";
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = "Enregistrer mon mot de passe";
+    }
+    return false;
+  }
+
+  window.addEventListener('DOMContentLoaded', checkRecoverySession);
+</script>
+
+</body>
+</html>
